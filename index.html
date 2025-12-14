@@ -26,11 +26,18 @@
     select { padding: 0.5rem; border-radius: 8px; border: 1px solid #3d8fb0; width: 90%; max-width: 400px; }
     .results { display: flex; flex-direction: column; align-items: center; margin: 1rem; }
     .card { background-color: white; border: 2px solid #3d8fb0; border-radius: 12px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); padding: 1rem; margin: 0.5rem; width: 90%; max-width: 600px; text-align: left; }
-    .btn { display: inline-block; background-color: #da6863; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 0.5rem; }
+    
+    /* Botones */
+    .btn { display: inline-block; background-color: #da6863; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 0.5rem; margin-right: 0.5rem; }
+    .btn:hover { opacity: 0.9; }
+    
+    /* Estilo específico para WhatsApp */
+    .btn.whatsapp { background-color: #25D366; } 
+    .btn.whatsapp:hover { background-color: #128C7E; }
+
     footer { background-color: #4d3069; color: white; padding: 1rem; margin-top: 1rem; }
     #contador { font-weight: bold; color: #f3efdc; }
     
-    /* Clase para ocultar elementos dinámicamente */
     .hidden { display: none; }
   </style>
 </head>
@@ -157,12 +164,11 @@
       const nivel = document.getElementById('nivelFilter');
       const modalidad = document.getElementById('modalidadFilter');
       const numero = document.getElementById('numeroFilter');
-      const nombre = document.getElementById('nombreFilter'); // Nuevo Selector
+      const nombre = document.getElementById('nombreFilter');
 
       function updateFilters(nextFiltersToUpdate) {
         let filtered = data;
         
-        // 1. Obtener valores actuales
         const gestionVal = gestion.value;
         const regionVal = region.value;
         const distritoVal = distrito.value;
@@ -171,8 +177,6 @@
         const numeroVal = numero.value;
         const nombreVal = nombre.value;
 
-        // --- LÓGICA DE VISIBILIDAD DE SELECTORES ---
-        // Chequeamos si la gestión seleccionada incluye la palabra "privada" (mayus/minus)
         const esPrivada = gestionVal && gestionVal.toLowerCase().includes('privada');
         
         if (esPrivada) {
@@ -183,24 +187,20 @@
             nombre.classList.add('hidden');
         }
 
-        // 2. Aplicar filtros en cascada
         if (gestionVal) filtered = filtered.filter(d => d.gestion === gestionVal);
         if (regionVal) filtered = filtered.filter(d => d.region_educativa === regionVal);
         if (distritoVal) filtered = filtered.filter(d => d.distrito === distritoVal);
         if (nivelVal) filtered = filtered.filter(d => d.nivel === nivelVal);
         if (modalidadVal) filtered = filtered.filter(d => d.modalidad === modalidadVal);
         
-        // Guardamos data para llenar el último select antes de filtrar por ese campo específico
         const dataForLastSelect = filtered;
 
-        // Aplicar filtro final dependiendo de si es privada o estatal
         if (esPrivada) {
             if (nombreVal) filtered = filtered.filter(d => d.nombre === nombreVal);
         } else {
             if (numeroVal) filtered = filtered.filter(d => d.nro_escuela === numeroVal);
         }
 
-        // 3. Actualizar los selects dependientes
         if (nextFiltersToUpdate.includes('regionFilter')) {
           fillSelect('regionFilter', [...new Set(filtered.map(d => d.region_educativa).filter(Boolean))].sort());
         }
@@ -214,36 +214,27 @@
           fillSelect('modalidadFilter', [...new Set(filtered.map(d => d.modalidad).filter(Boolean))].sort());
         }
         
-        // Actualizar el último filtro (Número O Nombre)
         if (nextFiltersToUpdate.includes('ultimoFiltro')) {
             if (esPrivada) {
-                // Llenar con Nombres
                 fillSelect('nombreFilter', [...new Set(dataForLastSelect.map(d => d.nombre).filter(Boolean))].sort());
                 if (nombreVal) nombre.value = nombreVal;
-                // Limpiar el otro para evitar conflictos
                 numero.value = ''; 
             } else {
-                // Llenar con Números
                 fillSelect('numeroFilter', [...new Set(dataForLastSelect.map(d => d.nro_escuela).filter(Boolean))].sort());
                 if (numeroVal) numero.value = numeroVal;
-                // Limpiar el otro
                 nombre.value = '';
             }
         }
 
-        // 4. Mostrar Resultados
         const container = document.getElementById('results');
         container.innerHTML = '';
 
-        // Mostramos resultados si se eligió Modalidad O se completó el último paso (Número o Nombre)
         if (modalidadVal || (esPrivada && nombreVal) || (!esPrivada && numeroVal)) {
              displayResults(filtered);
         }
       }
 
-      // Listeners
       gestion.addEventListener('change', () => {
-         // Reseteo total
          region.value = ''; distrito.value = ''; nivel.value = ''; modalidad.value = ''; numero.value = ''; nombre.value = '';
          updateFilters(['regionFilter', 'distritoFilter', 'nivelFilter', 'modalidadFilter', 'ultimoFiltro']);
       });
@@ -285,6 +276,9 @@
         return;
       }
 
+      // TU NÚMERO DE WHATSAPP ACTUALIZADO
+      const tuNumeroDeWhatsapp = "5491153196358"; 
+
       filtered.forEach(d => {
         let query = '';
 
@@ -295,6 +289,11 @@
         }
         
         const loc = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+        
+        // Creamos el mensaje predeterminado para WhatsApp
+        const nombreEscuela = d.nombre || `Escuela ${d.nro_escuela}`;
+        const textoWhatsapp = `Hola Docentes Brown, vi la ${nombreEscuela} en el buscador y quería hacerles una consulta.`;
+        const linkWhatsapp = `https://wa.me/${tuNumeroDeWhatsapp}?text=${encodeURIComponent(textoWhatsapp)}`;
         
         const card = document.createElement('div');
         card.className = 'card';
@@ -314,7 +313,10 @@
           Email: ${d.email || ''}<br>
           Tipo: ${d.tipo_organizacion || ''}<br>
           Desfavorabilidad: ${d.desfavorabilidad || ''}<br>
-          <a class='btn' href='${loc}' target='_blank'>📍 Ver ubicación</a>
+          <div style="margin-top:10px;">
+            <a class='btn' href='${loc}' target='_blank'>📍 Ubicación</a>
+            <a class='btn whatsapp' href='${linkWhatsapp}' target='_blank'>💬 WhatsApp a DB</a>
+          </div>
         `;
         container.appendChild(card);
       });
