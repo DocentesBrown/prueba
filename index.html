@@ -29,23 +29,27 @@
     .btn { display: inline-block; background-color: #da6863; color: white; padding: 0.5rem 1rem; border-radius: 8px; text-decoration: none; font-weight: bold; margin-top: 0.5rem; }
     footer { background-color: #4d3069; color: white; padding: 1rem; margin-top: 1rem; }
     #contador { font-weight: bold; color: #f3efdc; }
+    
+    /* Clase para ocultar elementos dinámicamente */
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <header>
-    <h1>Buscador de Escuelas Estatales</h1>
+    <h1>Buscador de Escuelas</h1>
     <h2>Optimizado por <a href="https://www.instagram.com/docentesbrown" target="_blank">@docentesbrown</a></h2>
     <h2>Si te sirvió este buscador invitanos un cafecito, tu aporte nos acompaña para seguir creciendo</h2>
   </header>
 
   <section class="filters">
     <select id="gestionFilter"><option value="">Seleccionar Gestión</option></select>
-    
     <select id="regionFilter"><option value="">Seleccionar Región</option></select>
     <select id="distritoFilter"><option value="">Seleccionar Distrito</option></select>
     <select id="nivelFilter"><option value="">Seleccionar Nivel</option></select>
     <select id="modalidadFilter"><option value="">Seleccionar Modalidad</option></select>
+    
     <select id="numeroFilter"><option value="">Seleccionar Nº de Escuela</option></select>
+    <select id="nombreFilter" class="hidden"><option value="">Seleccionar Nombre de Escuela</option></select>
   </section>
 
   <section class="results" id="results"></section>
@@ -124,16 +128,13 @@
     }
 
     function populateFilters(data) {
-      // MODIFICADO: Ahora poblamos primero el filtro de GESTIÓN en lugar de Región
-      // Se busca la columna 'gestion' (normalizada del CSV)
       const gestiones = [...new Set(data.map(d => d.gestion).filter(Boolean))].sort();
       fillSelect('gestionFilter', gestiones);
     }
 
     function fillSelect(id, options) {
       const select = document.getElementById(id);
-      // Mantener la opción por defecto
-      const defaultText = select.options[0].text;
+      const defaultText = select.options[0] ? select.options[0].text : "Seleccionar";
       select.innerHTML = ''; 
       
       const defaultOption = document.createElement('option');
@@ -150,56 +151,59 @@
     }
 
     function setupFilterListeners(data) {
-      // Referencias a todos los selectores
-      const gestion = document.getElementById('gestionFilter'); // NUEVO
+      const gestion = document.getElementById('gestionFilter');
       const region = document.getElementById('regionFilter');
       const distrito = document.getElementById('distritoFilter');
       const nivel = document.getElementById('nivelFilter');
       const modalidad = document.getElementById('modalidadFilter');
       const numero = document.getElementById('numeroFilter');
+      const nombre = document.getElementById('nombreFilter'); // Nuevo Selector
 
-      // Función centralizada de filtrado
       function updateFilters(nextFiltersToUpdate) {
         let filtered = data;
         
         // 1. Obtener valores actuales
-        const gestionVal = gestion.value; // NUEVO
+        const gestionVal = gestion.value;
         const regionVal = region.value;
         const distritoVal = distrito.value;
         const nivelVal = nivel.value;
         const modalidadVal = modalidad.value;
         const numeroVal = numero.value;
+        const nombreVal = nombre.value;
 
-        // 2. Aplicar filtros en cascada (Orden Jerárquico: Gestion -> Region -> Distrito -> Nivel...)
+        // --- LÓGICA DE VISIBILIDAD DE SELECTORES ---
+        // Chequeamos si la gestión seleccionada incluye la palabra "privada" (mayus/minus)
+        const esPrivada = gestionVal && gestionVal.toLowerCase().includes('privada');
         
-        // Nivel 1: Gestión
+        if (esPrivada) {
+            numero.classList.add('hidden');
+            nombre.classList.remove('hidden');
+        } else {
+            numero.classList.remove('hidden');
+            nombre.classList.add('hidden');
+        }
+
+        // 2. Aplicar filtros en cascada
         if (gestionVal) filtered = filtered.filter(d => d.gestion === gestionVal);
-
-        // Nivel 2: Región
         if (regionVal) filtered = filtered.filter(d => d.region_educativa === regionVal);
-        
-        // Nivel 3: Distrito
         if (distritoVal) filtered = filtered.filter(d => d.distrito === distritoVal);
-        
-        // Nivel 4: Nivel Educativo
         if (nivelVal) filtered = filtered.filter(d => d.nivel === nivelVal);
-        
-        // Nivel 5: Modalidad
         if (modalidadVal) filtered = filtered.filter(d => d.modalidad === modalidadVal);
         
-        // Datos para llenar el select de números (antes de filtrar por número específico)
-        const dataForNumbers = filtered; 
-        
-        // Nivel 6: Número específico
-        if (numeroVal) filtered = filtered.filter(d => d.nro_escuela === numeroVal);
+        // Guardamos data para llenar el último select antes de filtrar por ese campo específico
+        const dataForLastSelect = filtered;
+
+        // Aplicar filtro final dependiendo de si es privada o estatal
+        if (esPrivada) {
+            if (nombreVal) filtered = filtered.filter(d => d.nombre === nombreVal);
+        } else {
+            if (numeroVal) filtered = filtered.filter(d => d.nro_escuela === numeroVal);
+        }
 
         // 3. Actualizar los selects dependientes
-        
-        // Si cambia Gestión, actualizamos Región
         if (nextFiltersToUpdate.includes('regionFilter')) {
           fillSelect('regionFilter', [...new Set(filtered.map(d => d.region_educativa).filter(Boolean))].sort());
         }
-
         if (nextFiltersToUpdate.includes('distritoFilter')) {
           fillSelect('distritoFilter', [...new Set(filtered.map(d => d.distrito).filter(Boolean))].sort());
         }
@@ -209,51 +213,66 @@
         if (nextFiltersToUpdate.includes('modalidadFilter')) {
           fillSelect('modalidadFilter', [...new Set(filtered.map(d => d.modalidad).filter(Boolean))].sort());
         }
-        if (nextFiltersToUpdate.includes('numeroFilter')) {
-          fillSelect('numeroFilter', [...new Set(dataForNumbers.map(d => d.nro_escuela).filter(Boolean))].sort());
-           if (numeroVal) numero.value = numeroVal;
+        
+        // Actualizar el último filtro (Número O Nombre)
+        if (nextFiltersToUpdate.includes('ultimoFiltro')) {
+            if (esPrivada) {
+                // Llenar con Nombres
+                fillSelect('nombreFilter', [...new Set(dataForLastSelect.map(d => d.nombre).filter(Boolean))].sort());
+                if (nombreVal) nombre.value = nombreVal;
+                // Limpiar el otro para evitar conflictos
+                numero.value = ''; 
+            } else {
+                // Llenar con Números
+                fillSelect('numeroFilter', [...new Set(dataForLastSelect.map(d => d.nro_escuela).filter(Boolean))].sort());
+                if (numeroVal) numero.value = numeroVal;
+                // Limpiar el otro
+                nombre.value = '';
+            }
         }
 
         // 4. Mostrar Resultados
         const container = document.getElementById('results');
         container.innerHTML = '';
 
-        if (modalidadVal || numeroVal) {
+        // Mostramos resultados si se eligió Modalidad O se completó el último paso (Número o Nombre)
+        if (modalidadVal || (esPrivada && nombreVal) || (!esPrivada && numeroVal)) {
              displayResults(filtered);
         }
       }
 
       // Listeners
-      
-      // Listener para el nuevo filtro raíz (Gestión)
       gestion.addEventListener('change', () => {
-         // Reseteamos todos los hijos
-         region.value = ''; distrito.value = ''; nivel.value = ''; modalidad.value = ''; numero.value = '';
-         // Actualizamos desde Región hacia abajo
-         updateFilters(['regionFilter', 'distritoFilter', 'nivelFilter', 'modalidadFilter', 'numeroFilter']);
+         // Reseteo total
+         region.value = ''; distrito.value = ''; nivel.value = ''; modalidad.value = ''; numero.value = ''; nombre.value = '';
+         updateFilters(['regionFilter', 'distritoFilter', 'nivelFilter', 'modalidadFilter', 'ultimoFiltro']);
       });
 
       region.addEventListener('change', () => {
-         distrito.value = ''; nivel.value = ''; modalidad.value = ''; numero.value = '';
-         updateFilters(['distritoFilter', 'nivelFilter', 'modalidadFilter', 'numeroFilter']);
+         distrito.value = ''; nivel.value = ''; modalidad.value = ''; numero.value = ''; nombre.value = '';
+         updateFilters(['distritoFilter', 'nivelFilter', 'modalidadFilter', 'ultimoFiltro']);
       });
 
       distrito.addEventListener('change', () => {
-         nivel.value = ''; modalidad.value = ''; numero.value = '';
-         updateFilters(['nivelFilter', 'modalidadFilter', 'numeroFilter']);
+         nivel.value = ''; modalidad.value = ''; numero.value = ''; nombre.value = '';
+         updateFilters(['nivelFilter', 'modalidadFilter', 'ultimoFiltro']);
       });
 
       nivel.addEventListener('change', () => {
-         modalidad.value = ''; numero.value = '';
-         updateFilters(['modalidadFilter', 'numeroFilter']);
+         modalidad.value = ''; numero.value = ''; nombre.value = '';
+         updateFilters(['modalidadFilter', 'ultimoFiltro']);
       });
 
       modalidad.addEventListener('change', () => {
-         numero.value = '';
-         updateFilters(['numeroFilter']);
+         numero.value = ''; nombre.value = '';
+         updateFilters(['ultimoFiltro']);
       });
 
       numero.addEventListener('change', () => {
+         updateFilters([]); 
+      });
+
+      nombre.addEventListener('change', () => {
          updateFilters([]); 
       });
     }
@@ -275,14 +294,14 @@
           query = `Escuela ${d.nro_escuela || ''} ${d.distrito || ''} ${d.calle || ''} ${d.nro_calle || ''}`;
         }
         
-        // Nota: Corregí ligeramente la URL del mapa para que funcione mejor
         const loc = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
         
         const card = document.createElement('div');
         card.className = 'card';
         card.innerHTML = `
           <strong>${d.nombre || 'Nombre no disponible'}</strong><br>
-          Gestión: ${d.gestion || ''}<br> Región: ${d.region_educativa || ''}<br>
+          Gestión: ${d.gestion || ''}<br>
+          Región: ${d.region_educativa || ''}<br>
           Distrito: ${d.distrito || ''}<br>
           Clave: ${d.clave || ''}<br>
           Nivel: ${d.nivel || ''}<br>
